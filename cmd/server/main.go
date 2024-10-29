@@ -6,7 +6,10 @@ import (
 	"os/signal"
 	"syscall" // Import syscall for SIGTERM
 
+	// Import the pubsub package
+
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/tenderking/learn-pub-sub-starter/internal/pubsub"
 )
 
 func main() {
@@ -23,6 +26,12 @@ func main() {
 			fmt.Println("Error creating RabbitMQ channel")
 			return
 		}
+
+     err = pubsub.PublishJSON(rabbitmqChannel, "logs", "", "Hello, World!") 
+    if err != nil {
+        fmt.Println("Error publishing message:", err)
+        return 
+    }
     fmt.Println("Starting Peril server...")
 
     // Notify for both SIGINT and SIGTERM
