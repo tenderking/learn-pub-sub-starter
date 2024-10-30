@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall" // Import syscall for SIGTERM
@@ -10,68 +9,80 @@ import (
 	// Import the pubsub package
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/tenderking/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/tenderking/learn-pub-sub-starter/internal/pubsub"
 	"github.com/tenderking/learn-pub-sub-starter/internal/routing"
 )
 
 func main() {
-    addr := "amqp://guest:guest@localhost:5672/"
-    signalChan  := make(chan os.Signal, 1)
-    done := make(chan bool, 1)
-    conn, err := amqp.Dial(addr)
-    if err != nil {
-        fmt.Println("Error connecting to RabbitMQ")
-        return
-    }
-    rabbitmqChannel, err := conn.Channel()
-    if err != nil {
-        fmt.Println("Error creating RabbitMQ channel")
-        return
-    }
-
-
-
-
-	err = pubsub.PublishJSON(
-		rabbitmqChannel,
-		routing.ExchangePerilDirect,
-		routing.PauseKey,
-		routing.PlayingState{
-			IsPaused: true,
-		},
-	)
+	addr := "amqp://guest:guest@localhost:5672/"
+	signalChan := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+	conn, err := amqp.Dial(addr)
 	if err != nil {
-		log.Printf("could not publish time: %v", err)
+		fmt.Println("Error connecting to RabbitMQ")
+		return
 	}
-	fmt.Println("Pause message sent!")
-    // fmt.Println("Starting Peril server...")
-    //    // Create the PlayingState data
-    // state := routing.PlayingState{IsPaused: true}
 
-    // Publish the message using PublishJSON
-    // err = pubsub.PublishJSON(rabbitmqChannel, 
-    //                         routing.ExchangePerilDirect, 
-    //                         routing.PauseKey, 
-    //                         routing.PlayingState{IsPaused: true})
-    // if err != nil {
-    //     fmt.Println("Error publishing message:", err)
-    //     return
-    // }
+	gamelogic.PrintServerHelp()
 
-    // Notify for both SIGINT and SIGTERM
-    signal.Notify(signalChan , syscall.SIGINT, syscall.SIGTERM) 
+	rabbitmqChannel, err := conn.Channel()
+	if err != nil {
+		fmt.Println("Error creating RabbitMQ channel")
+		return
+	}
 
-    defer conn.Close()
-		defer rabbitmqChannel.Close()
+	for {
+		word := gamelogic.GetInput()
+		if word == nil {
+			continue
+		}
+		if word[0] == "pause" {
+			fmt.Println("Pausing the game...")
+			err = pubsub.PublishJSON(
+				rabbitmqChannel,
+				routing.ExchangePerilDirect,
+				routing.PauseKey,
+				routing.PlayingState{
+					IsPaused: true,
+				},
+			)
+			if err != nil {
+				fmt.Println("Error publishing message")
+			}
 
-    go func() {
-        sig := <-signalChan 
-        fmt.Println()
-        fmt.Println(sig)
-        done <- true
-    }()
+		}
+		if word[0] == "resume" {
+			fmt.Println("Resuming the game...")
+			err = pubsub.PublishJSON(
+				rabbitmqChannel,
+				routing.ExchangePerilDirect,
+				routing.PauseKey,
+				routing.PlayingState{
+					IsPaused: false,
+				},
+			)
+			if err != nil {
+				fmt.Println("Error publishing message")
+			}
+		}
+		if word[0] == "quit" {
+			break
+		}
+	}
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
-    fmt.Println("awaiting signal")
-    <-done  // Wait for the signal handler to signal completion
-    fmt.Println("exiting")
+	defer conn.Close()
+	defer rabbitmqChannel.Close()
+
+	go func() {
+		sig := <-signalChan
+		fmt.Println()
+		fmt.Println(sig)
+		done <- true
+	}()
+
+	fmt.Println("awaiting signal")
+	<-done // Wait for the signal handler to signal completion
+	fmt.Println("exiting")
 }
