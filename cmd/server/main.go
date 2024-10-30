@@ -23,11 +23,11 @@ func main() {
         fmt.Println("Error connecting to RabbitMQ")
         return
     }
-		rabbitmqChannel, err := conn.Channel()
-		if err != nil {
-			fmt.Println("Error creating RabbitMQ channel")
-			return
-		}
+    rabbitmqChannel, err := conn.Channel()
+    if err != nil {
+        fmt.Println("Error creating RabbitMQ channel")
+        return
+    }
 
 
 
