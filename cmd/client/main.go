@@ -24,17 +24,23 @@ func main() {
 		return
 	}
 	defer conn.Close()
-	rabbitmqChannel, err := conn.Channel()
-	if err != nil {
-		fmt.Println("Error creating RabbitMQ channel")
-		return
-	}
-	defer rabbitmqChannel.Close()
+
 	username, _ := gamelogic.ClientWelcome()
 	queueName := []string{routing.PauseKey, username}
-	pubsub.DeclareAndBind(conn, routing.ExchangePerilDirect, strings.Join(queueName, "."), routing.PauseKey, 0)
-
 	gameState := gamelogic.NewGameState(username)
+
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		strings.Join(queueName, "."),
+		routing.PauseKey,
+		pubsub.Durable,
+		handlerPause(gameState))
+	if err != nil {
+		fmt.Println("Error subscribing to queue", err)
+		return
+	}
+
 	for {
 		word := gamelogic.GetInput()
 		if word == nil {
@@ -78,6 +84,7 @@ func main() {
 			continue
 		}
 	}
+
 	// Notify for both SIGINT and SIGTERM
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall" // Import syscall for SIGTERM
 
 	// Import the pubsub package
@@ -23,14 +24,23 @@ func main() {
 		fmt.Println("Error connecting to RabbitMQ")
 		return
 	}
+	defer conn.Close()
+	publishCh, err := conn.Channel()
+	if err != nil {
+		fmt.Println("Error creating channel")
+		return
+	}
 
 	gamelogic.PrintServerHelp()
 
-	rabbitmqChannel, err := conn.Channel()
+	key := []string{routing.GameLogSlug, "*"}
+
+	_, queue, err := pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, routing.GameLogSlug, strings.Join(key, "."), int(pubsub.Durable))
 	if err != nil {
-		fmt.Println("Error creating RabbitMQ channel")
+		fmt.Println("Error declaring and binding queue", err)
 		return
 	}
+	fmt.Printf("Queue %v declared and bound!\n", queue.Name)
 
 	for {
 		word := gamelogic.GetInput()
@@ -40,8 +50,8 @@ func main() {
 		if word[0] == "pause" {
 			fmt.Println("Pausing the game...")
 			err = pubsub.PublishJSON(
-				rabbitmqChannel,
-				routing.ExchangePerilDirect,
+				publishCh,
+				routing.ExchangePerilTopic,
 				routing.PauseKey,
 				routing.PlayingState{
 					IsPaused: true,
@@ -55,8 +65,8 @@ func main() {
 		if word[0] == "resume" {
 			fmt.Println("Resuming the game...")
 			err = pubsub.PublishJSON(
-				rabbitmqChannel,
-				routing.ExchangePerilDirect,
+				publishCh,
+				routing.ExchangePerilTopic,
 				routing.PauseKey,
 				routing.PlayingState{
 					IsPaused: false,
@@ -71,9 +81,6 @@ func main() {
 		}
 	}
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-
-	defer conn.Close()
-	defer rabbitmqChannel.Close()
 
 	go func() {
 		sig := <-signalChan

@@ -1,11 +1,17 @@
 package pubsub
 
 import (
-	"context"
-	"encoding/json"
+	"fmt"
 	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+)
+
+type SimpleQueueType int
+
+const (
+	Durable   SimpleQueueType = 0
+	Transient SimpleQueueType = 1
 )
 
 func failOnError(err error, msg string) {
@@ -14,17 +20,6 @@ func failOnError(err error, msg string) {
 	}
 }
 
-func PublishJSON[T any](ch *amqp.Channel, exchange, key string, val T) error {
-
-	dat, err := json.Marshal(val)
-	if err != nil {
-		return err
-	}
-	return ch.PublishWithContext(context.Background(), exchange, key, false, false, amqp.Publishing{
-		ContentType: "application/json",
-		Body:        dat,
-	})
-}
 func DeclareAndBind(
 	conn *amqp.Connection,
 	exchange,
@@ -36,17 +31,22 @@ func DeclareAndBind(
 	// declare a channel
 	ch, err := conn.Channel()
 	if err != nil {
-		return nil, amqp.Queue{}, err
+		return nil, amqp.Queue{}, fmt.Errorf("failed to open a channel: %w", err)
 	}
+
 	// declare an queue
-	q, _ := ch.QueueDeclare(
+	q, err := ch.QueueDeclare(
 		queueName,
 		simpleQueueType == 0, // durable
-		simpleQueueType == 0, // autoDelete
-		simpleQueueType == 0, // exclusive
+		simpleQueueType == 1, // autoDelete
+		simpleQueueType == 1, // exclusive
 		false,                // noWait
 		nil,                  // args
 	)
+	if err != nil {
+		return nil, amqp.Queue{}, fmt.Errorf("failed to declare queue: %w", err)
+	}
+
 	// bind the queue to the exchange
 	err = ch.QueueBind(
 		q.Name,
@@ -55,6 +55,9 @@ func DeclareAndBind(
 		false,
 		nil,
 	)
+	if err != nil {
+		return nil, amqp.Queue{}, fmt.Errorf("failed to bind queue: %w", err)
+	}
 
 	return ch, q, err
 
