@@ -24,6 +24,12 @@ func main() {
 		return
 	}
 	defer conn.Close()
+	ch, err := conn.Channel()
+	if err != nil {
+		fmt.Println("Error creating channel")
+		return
+	}
+	defer ch.Close()
 
 	username, _ := gamelogic.ClientWelcome()
 	queueName := []string{routing.PauseKey, username}
@@ -36,6 +42,17 @@ func main() {
 		routing.PauseKey,
 		pubsub.Durable,
 		handlerPause(gameState))
+	if err != nil {
+		fmt.Println("Error subscribing to queue", err)
+		return
+	}
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		strings.Join([]string{routing.ArmyMovesPrefix, gameState.Player.Username}, "."),
+		routing.ArmyMovesPrefix+".*",
+		pubsub.Transient,
+		handlerMoves(gameState))
 	if err != nil {
 		fmt.Println("Error subscribing to queue", err)
 		return
@@ -61,6 +78,25 @@ func main() {
 				fmt.Println("Error moving unit:", err)
 
 			}
+			var units []gamelogic.Unit
+			for _, unit := range gameState.GetPlayerSnap().Units {
+				units = append(units, unit)
+			}
+			err = pubsub.PublishJSON(
+				ch,
+				routing.ExchangePerilTopic,
+				routing.ArmyMovesPrefix+"."+gameState.GetPlayerSnap().Username,
+				gamelogic.ArmyMove{
+					Player:     gameState.GetPlayerSnap(),
+					Units:      units,
+					ToLocation: gameState.GetPlayerSnap().Units[0].Location,
+				},
+			)
+			if err != nil {
+				fmt.Println("Error publishing message")
+			}
+			fmt.Println("Player moved!")
+
 		}
 		if word[0] == "status" {
 			fmt.Println("Checking the status of the game...")
