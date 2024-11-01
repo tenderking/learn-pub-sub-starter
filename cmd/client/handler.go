@@ -27,7 +27,7 @@ func handlerMoves(gs *gamelogic.GameState, ch *amqp091.Channel) func(am gamelogi
 		case gamelogic.MoveOutComeSafe:
 			return pubsub.Ack
 		case gamelogic.MoveOutcomeMakeWar:
-			pubsub.PublishJSON(
+			err := pubsub.PublishJSON(
 				ch,
 				routing.ExchangePerilTopic,
 				routing.WarRecognitionsPrefix+"."+gs.Player.Username,
@@ -36,7 +36,10 @@ func handlerMoves(gs *gamelogic.GameState, ch *amqp091.Channel) func(am gamelogi
 					Attacker: am.Player,
 				},
 			)
-			return pubsub.NackRequeue
+			if err != nil {
+				return pubsub.NackRequeue
+			}
+			return pubsub.Ack
 		case gamelogic.MoveOutcomeSamePlayer:
 			return pubsub.NackDiscard
 		default:
