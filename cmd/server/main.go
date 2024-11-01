@@ -80,6 +80,20 @@ func main() {
 			break
 		}
 	}
+
+	err = pubsub.SubscribeGob(
+		conn,
+		routing.ExchangePerilTopic,
+		queue.Name,
+		routing.GameLogSlug+".*",
+		pubsub.Durable,
+		handlerGameLogs(),
+	)
+	if err != nil {
+		fmt.Println("Error subscribing to queue", err)
+		return
+	}
+
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
