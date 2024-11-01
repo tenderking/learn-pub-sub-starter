@@ -41,7 +41,8 @@ func main() {
 		strings.Join(queueName, "."),
 		routing.PauseKey,
 		pubsub.Durable,
-		handlerPause(gameState))
+		handlerPause(gameState),
+	)
 	if err != nil {
 		fmt.Println("Error subscribing to queue", err)
 		return
@@ -52,7 +53,20 @@ func main() {
 		strings.Join([]string{routing.ArmyMovesPrefix, gameState.Player.Username}, "."),
 		routing.ArmyMovesPrefix+".*",
 		pubsub.Transient,
-		handlerMoves(gameState))
+		handlerMoves(gameState, ch),
+	)
+	if err != nil {
+		fmt.Println("Error subscribing to queue", err)
+		return
+	}
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.WarRecognitionsPrefix,
+		routing.WarRecognitionsPrefix+".*",
+		pubsub.Durable,
+		handlerWar(gameState),
+	)
 	if err != nil {
 		fmt.Println("Error subscribing to queue", err)
 		return

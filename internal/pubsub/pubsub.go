@@ -7,13 +7,6 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-type SimpleQueueType int
-
-const (
-	Durable   SimpleQueueType = 0
-	Transient SimpleQueueType = 1
-)
-
 func failOnError(err error, msg string) {
 	if err != nil {
 		log.Fatalf("%s: %s", msg, err)
@@ -41,7 +34,9 @@ func DeclareAndBind(
 		simpleQueueType == 1, // autoDelete
 		simpleQueueType == 1, // exclusive
 		false,                // noWait
-		nil,                  // args
+		amqp.Table{
+			"x-dead-letter-exchange": "peril_dlx",
+		}, // args
 	)
 	if err != nil {
 		return nil, amqp.Queue{}, fmt.Errorf("failed to declare queue: %w", err)
