@@ -55,6 +55,7 @@ func subscribe[T any](
 		int(simpleQueueType),
 	)
 	failOnError(err, "failed to declare and bind")
+	ch.Qos(10, 0, false)
 
 	consumer := ""
 	deliveries, err := ch.Consume(q.Name, consumer, false, false, false, false, nil)
