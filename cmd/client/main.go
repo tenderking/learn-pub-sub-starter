@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall" // Import syscall for SIGTERM
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/tenderking/learn-pub-sub-starter/internal/gamelogic"
@@ -71,26 +73,26 @@ func main() {
 		fmt.Println("Error subscribing to queue", err)
 		return
 	}
-
+gameLoop:
 	for {
 		word := gamelogic.GetInput()
 		if word == nil {
 			continue
 		}
 
-		if word[0] == "spawn" {
+		switch word[0] {
+		case "spawn":
 			fmt.Println("Spawning a new player...")
 			err := gameState.CommandSpawn(word)
 			if err != nil {
 				fmt.Println("Error spawning unit:", err)
 			}
-		}
-		if word[0] == "move" {
+
+		case "move":
 			fmt.Println("Moving a player...")
 			_, err := gameState.CommandMove(word)
 			if err != nil {
 				fmt.Println("Error moving unit:", err)
-
 			}
 			var units []gamelogic.Unit
 			for _, unit := range gameState.GetPlayerSnap().Units {
@@ -111,27 +113,45 @@ func main() {
 			}
 			fmt.Println("Player moved!")
 
-		}
-		if word[0] == "status" {
+		case "status":
 			fmt.Println("Checking the status of the game...")
 			gameState.CommandStatus()
-		}
-		if word[0] == "spam" {
-			fmt.Println("Spamming not allowed yet!")
-		}
-		if word[0] == "help" {
+
+		case "spam":
+			if len(word) >= 1 {
+				num, err := strconv.Atoi(word[1])
+				if err != nil {
+					fmt.Println("Invalid number of spam messages")
+					continue
+				}
+				for i := 0; i < num; i++ {
+					msg := gamelogic.GetMaliciousLog()
+
+					err := pubsub.PublishGob(
+						ch,
+						routing.ExchangePerilTopic,
+						routing.GameLogSlug+"."+gameState.GetUsername(),
+						routing.GameLog{
+							CurrentTime: time.Now(),
+							Message:     msg,
+							Username:    gameState.GetUsername(),
+						},
+					)
+					if err != nil {
+						fmt.Println("Error publishing message")
+					}
+				}
+			}
+
+		case "help":
 			gamelogic.PrintClientHelp()
-		}
 
-		if word[0] == "quit" {
-
+		case "quit":
 			gamelogic.PrintQuit()
-			break
-		}
+			break gameLoop
 
-		if word[0] != "spawn" && word[0] != "move" && word[0] != "status" && word[0] != "spam" && word[0] != "quit" && word[0] != "help" {
+		default:
 			fmt.Println("Invalid command. Please try again.")
-			continue
 		}
 	}
 

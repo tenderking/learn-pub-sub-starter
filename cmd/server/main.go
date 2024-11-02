@@ -33,6 +33,19 @@ func main() {
 
 	gamelogic.PrintServerHelp()
 
+	err = pubsub.SubscribeGob(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		routing.GameLogSlug+".*",
+		pubsub.Durable,
+		handlerGameLogs(),
+	)
+	if err != nil {
+		fmt.Println("Error subscribing to queue", err)
+		return
+	}
+
 	key := []string{routing.GameLogSlug, "*"}
 
 	_, queue, err := pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, routing.GameLogSlug, strings.Join(key, "."), int(pubsub.Durable))
@@ -79,19 +92,6 @@ func main() {
 		if word[0] == "quit" {
 			break
 		}
-	}
-
-	err = pubsub.SubscribeGob(
-		conn,
-		routing.ExchangePerilTopic,
-		queue.Name,
-		routing.GameLogSlug+".*",
-		pubsub.Durable,
-		handlerGameLogs(),
-	)
-	if err != nil {
-		fmt.Println("Error subscribing to queue", err)
-		return
 	}
 
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
